@@ -48,11 +48,20 @@ locked decisions and `docs/design.md` for mechanics.
 
 ## Non-obvious choices recorded so far
 
-- `addons/sg-physics-2d` and `addons/godot-rollback-netcode` are
-  `.gitkeep` placeholders. Real install happens via Godot AssetLib by
-  the human (see `TODO_HUMAN.md`).
+- **SG Physics 2D** is installed from the upstream GitLab release zip
+  (v1.0.0-alpha13 godot4-gdextension), committed into
+  `addons/sg-physics-2d/` with Linux + Windows x86_64 binaries.
+  macOS / ARM binaries are not shipped by upstream; if a target build
+  needs them, compile from source. `addons/godot-rollback-netcode/`
+  remains a `.gitkeep` until Phase 5.
+- All gameplay collision/movement uses the SG types: `SGFixedNode2D`,
+  `SGCharacterBody2D`, `SGStaticBody2D`, `SGArea2D`,
+  `SGRectangleShape2D`, with `SGFixedVector2` / `SGFixed` for math.
 - 2 input slots are wired from day one even though Phase 1 has one
   human player + one immobile dummy. Slot 2 is fed empty inputs.
 - Knockback formula constants (`base_damage`, `knockback_scale`,
   `base_knockback`) are placeholders for Phase 4+ tuning. The formula
   shape is locked; the numbers are not.
+- The knockback formula uses floats (per spec). For Phase 1 (local
+  single-player) this is fine; before Phase 5 rollback wiring, port
+  it to `SGFixed` arithmetic.

@@ -90,15 +90,14 @@ func tick(input: Dictionary, current_frame: int) -> void:
 	var v: SGFixedVector2 = velocity
 	var eff: Dictionary = input if not is_dummy else _empty_input()
 
-	# Gravity
-	if not is_on_floor():
-		var new_vy: int = v.y + gravity_fx
-		if new_vy > max_fall_fx:
-			new_vy = max_fall_fx
-		v.y = new_vy
-	else:
-		if v.y > 0:
-			v.y = 0
+	# Gravity is applied every tick — move_and_slide cancels it on floor
+	# contact. Zeroing vy on floor would lose contact and make
+	# is_on_floor() flip false next tick.
+	var new_vy: int = v.y + gravity_fx
+	if new_vy > max_fall_fx:
+		new_vy = max_fall_fx
+	v.y = new_vy
+	if is_on_floor():
 		jumps_used = 0
 
 	if hitstun_remaining > 0:

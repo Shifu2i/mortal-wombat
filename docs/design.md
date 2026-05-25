@@ -13,12 +13,18 @@ Press R to reset.
 |--------------|------------------|-------------------|
 | move_left    | A, Left arrow    | left stick / dpad |
 | move_right   | D, Right arrow   | left stick / dpad |
+| move_up      | W, Up arrow      | left stick / dpad |
+| move_down    | S, Down arrow    | left stick / dpad |
 | jump         | Space, W         | south face button |
 | attack       | J                | west face button  |
 | reset        | R                | start             |
 
 Bindings live in `project.godot` `[input]` section. Don't read keys
 directly anywhere else.
+
+`move_up` overlaps with `jump` on W — tapping W jumps, holding W in
+the air also aims the next attack upward. `move_down` (S) is purely
+for aiming aerial attacks downward; there's no fast-fall yet.
 
 ## Movement constants (Phase 1 placeholders)
 
@@ -39,8 +45,10 @@ All values in pixels and frames (60 fps). These tune later.
 - Startup: 3 frames
 - Active: 3 frames (hitbox spawned)
 - Recovery: 6 frames
-- Hitbox damage: 8
-- Hitbox angle: 40 degrees
+- Hitbox damage: 8 (+5 if airborne)
+- Hitbox angle: 40 degrees grounded (mirrored by facing). Aerial jabs
+  read WASD at the press-frame and snap to one of 8 directions; the
+  hitbox offset and knockback angle both follow the aim.
 - Hitbox base_knockback: 30
 - Hitbox knockback_scale: 1.0
 - Hitbox base_damage: 8

@@ -77,12 +77,14 @@ func _push(slot: int, snap: Dictionary) -> void:
 func _sample_local_player() -> Dictionary:
 	var held: Dictionary = {
 		"move_x": _axis("move_left", "move_right"),
+		"move_y": _axis("move_up", "move_down"),
 		"jump": Input.is_action_pressed("jump"),
 		"attack": Input.is_action_pressed("attack"),
 	}
 	var prev: Dictionary = _prev_held[0]
 	var snap: Dictionary = {
 		"move_x": held.move_x,
+		"move_y": held.move_y,
 		"jump": held.jump,
 		"jump_pressed": held.jump and not prev.get("jump", false),
 		"attack": held.attack,
@@ -105,6 +107,7 @@ func _axis(neg_action: String, pos_action: String) -> int:
 func _empty_snapshot() -> Dictionary:
 	return {
 		"move_x": 0,
+		"move_y": 0,
 		"jump": false,
 		"jump_pressed": false,
 		"attack": false,

@@ -30,6 +30,10 @@ const JAB_STARTUP: int = 3
 const JAB_ACTIVE_END: int = 6  # startup(3) + active(3) — frames 3..5 are hot
 const JAB_TOTAL: int = 12
 
+# Aerial bonus: aerial jabs deal AERIAL_BONUS_DAMAGE extra percent and are
+# aimed in 8 directions from WASD held at the moment of the press.
+const AERIAL_BONUS_DAMAGE: int = 5
+
 # Character body extents in pixels — must match the SGCollisionShape2D set
 # up in wombat.tscn. Used for hurtbox AABB queries.
 const BODY_HALF_W: int = 8
@@ -51,6 +55,11 @@ var _spawn_position_fx_x: int = 0
 var _spawn_position_fx_y: int = 0
 var _hitbox_visual: Polygon2D = null
 var _percent_label: Label = null
+
+# The actual hitbox in play for the current attack — derived from `jab`
+# but with aim direction, aerial damage bonus, etc. baked in at attack
+# start. Cleared between attacks.
+var _active_hitbox: Resource = null
 
 
 func _ready() -> void:
@@ -123,8 +132,9 @@ func tick(input: Dictionary, current_frame: int) -> void:
 			fsm.transition_to(FsmRes.State.JUMP_RISE, current_frame)
 		if eff.attack_pressed:
 			# Phase 1: jab works grounded or airborne, walking or not.
-			# One button always swings.
-			_begin_attack(current_frame)
+			# One button always swings. Aerial jabs aim per WASD and
+			# deal +AERIAL_BONUS_DAMAGE.
+			_begin_attack(eff, current_frame)
 		_update_locomotion_state(eff.move_x, current_frame)
 
 	velocity = v
@@ -145,8 +155,11 @@ func get_hitbox_rect() -> Rect2:
 	# hurtbox, and both come from the same float positions, so the test is
 	# self-consistent within one tick. (For Phase 5 rollback, replace with
 	# fixed-point comparison.)
-	var center: Vector2 = position + Vector2(jab.offset_px.x * facing, jab.offset_px.y)
-	var size: Vector2 = Vector2(jab.size_px)
+	var hb: Resource = _active_hitbox if _active_hitbox != null else jab
+	# Offset already encodes direction (aim or facing), so no facing
+	# multiplication here.
+	var center: Vector2 = position + Vector2(hb.offset_px)
+	var size: Vector2 = Vector2(hb.size_px)
 	return Rect2(center - size * 0.5, size)
 
 
@@ -156,13 +169,13 @@ func get_hurtbox_rect() -> Rect2:
 	return Rect2(center - size * 0.5, size)
 
 
-func apply_hit(hb: Resource, attacker_facing: int) -> void:
+func apply_hit(hb: Resource, _attacker_facing: int = 1) -> void:
+	# The hitbox's angle_degrees already encodes direction (grounded
+	# facing-mirrored, aerial aimed), so we don't flip velocity by
+	# attacker facing here. Param kept for back-compat with callers.
 	damage_percent += hb.damage
 	var kb: Dictionary = KnockbackUtil.compute(damage_percent, hb)
-	var v_kb: SGFixedVector2 = kb.velocity_fixed
-	if attacker_facing < 0:
-		v_kb.x = -v_kb.x
-	velocity = v_kb
+	velocity = kb.velocity_fixed
 	hitstun_remaining = kb.hitstun_frames
 	fsm.transition_to(FsmRes.State.HITSTUN, 0)
 	_refresh_percent_label()
@@ -177,15 +190,55 @@ func reset_to_spawn() -> void:
 	hitstun_remaining = 0
 	current_attack_id = -1
 	hits_dealt_this_attack.clear()
+	_active_hitbox = null
 	fsm = FsmRes.new()
 	_hide_hitbox_visual()
 	_refresh_percent_label()
 
 
-func _begin_attack(current_frame: int) -> void:
+func _begin_attack(input: Dictionary, current_frame: int) -> void:
 	fsm.transition_to(FsmRes.State.ATTACK_NEUTRAL, current_frame)
 	current_attack_id += 1
 	hits_dealt_this_attack.clear()
+	_active_hitbox = _build_active_hitbox(input)
+
+
+# Builds a per-attack Hitbox derived from `jab`. Aerial attacks get a
+# damage bonus and are aimed via WASD; grounded attacks aim along the
+# current facing.
+func _build_active_hitbox(input: Dictionary) -> Resource:
+	var hb: Resource = HitboxRes.new()
+	hb.base_damage = jab.base_damage
+	hb.base_knockback = jab.base_knockback
+	hb.knockback_scale = jab.knockback_scale
+	hb.active_frames = jab.active_frames
+	hb.size_px = jab.size_px
+
+	var aerial: bool = not is_on_floor()
+	hb.damage = jab.damage + (AERIAL_BONUS_DAMAGE if aerial else 0)
+
+	var aim_x: int = 0
+	var aim_y: int = 0
+	if aerial:
+		aim_x = input.get("move_x", 0)
+		aim_y = input.get("move_y", 0)
+	if aim_x == 0 and aim_y == 0:
+		# No direction held — aim forward along facing, slightly upward
+		# like the original grounded jab (40 deg).
+		var ground_angle: int = jab.angle_degrees if facing >= 0 else 180 - jab.angle_degrees
+		hb.angle_degrees = ground_angle
+		var rad: float = float(ground_angle) * 0.017453292519943295
+		hb.offset_px = Vector2i(int(round(cos(rad) * 16.0)), int(round(-sin(rad) * 16.0)))
+	else:
+		# 8-direction aim. Angle: 0=right, 90=up, in math convention.
+		var rad: float = atan2(float(-aim_y), float(aim_x))
+		hb.angle_degrees = int(round(rad * 57.29577951308232))
+		hb.offset_px = Vector2i(int(round(cos(rad) * 16.0)), int(round(-sin(rad) * 16.0)))
+	return hb
+
+
+func get_active_hitbox() -> Resource:
+	return _active_hitbox
 
 
 func _tick_attack(current_frame: int) -> void:
@@ -228,14 +281,15 @@ func _update_locomotion_state(move_x: int, current_frame: int) -> void:
 func _show_hitbox_visual() -> void:
 	if _hitbox_visual != null:
 		return
+	var hb: Resource = _active_hitbox if _active_hitbox != null else jab
 	_hitbox_visual = Polygon2D.new()
-	var hw: float = float(jab.size_px.x) * 0.5
-	var hh: float = float(jab.size_px.y) * 0.5
+	var hw: float = float(hb.size_px.x) * 0.5
+	var hh: float = float(hb.size_px.y) * 0.5
 	_hitbox_visual.polygon = PackedVector2Array([
 		Vector2(-hw, -hh), Vector2(hw, -hh), Vector2(hw, hh), Vector2(-hw, hh)
 	])
 	_hitbox_visual.color = Color(1.0, 0.3, 0.2, 0.55)
-	_hitbox_visual.position = Vector2(jab.offset_px.x * facing, jab.offset_px.y)
+	_hitbox_visual.position = Vector2(hb.offset_px)
 	add_child(_hitbox_visual)
 
 

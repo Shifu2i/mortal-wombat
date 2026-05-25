@@ -67,7 +67,10 @@ func _physics_process(_delta: float) -> void:
 			if attacker.hits_dealt_this_attack.has(victim.get_instance_id()):
 				continue
 			if hb_rect.intersects(victim.get_hurtbox_rect()):
-				victim.apply_hit(attacker.jab, attacker.facing)
+				var hb: Resource = attacker.get_active_hitbox()
+				if hb == null:
+					hb = attacker.jab
+				victim.apply_hit(hb, attacker.facing)
 				attacker.hits_dealt_this_attack[victim.get_instance_id()] = true
 
 	for fighter in fighters:

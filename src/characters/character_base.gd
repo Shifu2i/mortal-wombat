@@ -106,7 +106,11 @@ func tick(input: Dictionary, current_frame: int) -> void:
 		if hitstun_remaining == 0:
 			_settle_state_after_hitstun(current_frame)
 	elif fsm.state == FsmRes.State.ATTACK_NEUTRAL:
-		v.x = 0
+		# Walk speed is still input-driven during the jab — the swing
+		# doesn't lock movement, so the player can attack mid-dash and
+		# chase knockback without stopping. Facing is locked from the
+		# moment the attack began so the hitbox stays aimed.
+		v.x = walk_speed_fx * eff.move_x
 		_tick_attack(current_frame)
 	else:
 		v.x = walk_speed_fx * eff.move_x
@@ -118,11 +122,9 @@ func tick(input: Dictionary, current_frame: int) -> void:
 			jumps_used += 1
 			fsm.transition_to(FsmRes.State.JUMP_RISE, current_frame)
 		if eff.attack_pressed:
-			# Phase 1: jab works grounded or airborne. Aerials may want a
-			# separate move later, but for prototype usability one button
-			# always swings.
+			# Phase 1: jab works grounded or airborne, walking or not.
+			# One button always swings.
 			_begin_attack(current_frame)
-			v.x = 0
 		_update_locomotion_state(eff.move_x, current_frame)
 
 	velocity = v

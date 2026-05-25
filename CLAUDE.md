@@ -69,3 +69,11 @@ locked decisions and `docs/design.md` for mechanics.
 - The knockback formula uses floats (per spec). For Phase 1 (local
   single-player) this is fine; before Phase 5 rollback wiring, port
   it to `SGFixed` arithmetic.
+- **SG teleport gotcha**: `set_fixed_position` at runtime only marks
+  the node's transform dirty; the SG physics server's collision rep
+  isn't updated until `move_and_slide` (or similar) touches it
+  again. Without an explicit `sync_to_physics_engine()` after the
+  teleport, the next `move_and_slide` operates from the *old*
+  position and drags the visible position right back to where it
+  was. `character_base.ko_and_respawn()` calls
+  `sync_to_physics_engine()` for this reason.

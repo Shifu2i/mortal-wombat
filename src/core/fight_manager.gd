@@ -90,8 +90,9 @@ func _physics_process(_delta: float) -> void:
 	for fighter in fighters:
 		if not blast_zone.has_point(fighter.position):
 			ko_occurred.emit(fighter.player_slot)
-			ko_event = "KO P%d on frame %d" % [fighter.player_slot + 1, f_now]
-			fighter.reset_to_spawn()
+			ko_event = "KO P%d (#%d) frame %d" % [
+				fighter.player_slot + 1, fighter.ko_count + 1, f_now]
+			fighter.ko_and_respawn()
 
 	frame_advanced.emit(f_now)
 
@@ -109,19 +110,25 @@ func get_debug_state() -> Dictionary:
 	var p1_state_name: String = "-"
 	var p1_percent: int = 0
 	var dummy_percent: int = 0
+	var dummy_respawns: int = 0
 	var p1_input: Dictionary = {}
+	var p1_kos: int = 0
 	for f in fighters:
 		if f.player_slot == 0:
 			p1_state_name = FsmRes.state_name(f.fsm.state)
 			p1_percent = f.damage_percent
+			p1_kos = f.ko_count
 			p1_input = input_buffer.get_snapshot(0, clock.frame)
 		elif f.is_dummy:
 			dummy_percent = f.damage_percent
+			dummy_respawns = f.ko_count
 	return {
 		"frame": clock.frame,
 		"p1_state": p1_state_name,
 		"p1_percent": p1_percent,
+		"p1_kos": p1_kos,
 		"dummy_percent": dummy_percent,
+		"dummy_kos": dummy_respawns,
 		"input": p1_input,
 		"ko": ko_event,
 	}

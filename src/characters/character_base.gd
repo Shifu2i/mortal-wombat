@@ -56,6 +56,11 @@ var _spawn_position_fx_y: int = 0
 var _hitbox_visual: Polygon2D = null
 var _percent_label: Label = null
 
+# KO counter — incremented every time the fighter crosses the blast zone
+# and gets teleported back to spawn. Unlimited (no stock system in
+# Phase 1); both player and dummy use the same handler.
+var ko_count: int = 0
+
 # The actual hitbox in play for the current attack — derived from `jab`
 # but with aim direction, aerial damage bonus, etc. baked in at attack
 # start. Cleared between attacks.
@@ -182,10 +187,20 @@ func apply_hit(hb: Resource, _attacker_facing: int = 1, damage_multiplier: int =
 	_refresh_percent_label()
 
 
-func reset_to_spawn() -> void:
+func ko_and_respawn() -> void:
+	# KO = teleport back to spawn + full state reset.
+	#
+	# set_fixed_position only marks the node's transform dirty; the SG
+	# physics server's collision rep doesn't sync until something else
+	# touches it. Without sync_to_physics_engine(), move_and_slide on
+	# the next tick still operates from the offscreen position, drags
+	# the visible position back outside the blast zone, and the KO
+	# loops every frame.
 	var sg: Object = Engine.get_singleton("SGFixed")
 	set_fixed_position(sg.vector2(_spawn_position_fx_x, _spawn_position_fx_y))
-	velocity = sg.vector2(0, 0)
+	sync_to_physics_engine()
+	velocity.x = 0
+	velocity.y = 0
 	damage_percent = 0
 	jumps_used = 0
 	hitstun_remaining = 0
@@ -193,8 +208,14 @@ func reset_to_spawn() -> void:
 	hits_dealt_this_attack.clear()
 	_active_hitbox = null
 	fsm = FsmRes.new()
+	ko_count += 1
 	_hide_hitbox_visual()
 	_refresh_percent_label()
+
+
+# Backwards-compat alias for any caller still using the old name.
+func reset_to_spawn() -> void:
+	ko_and_respawn()
 
 
 func _begin_attack(input: Dictionary, current_frame: int) -> void:

@@ -27,9 +27,13 @@ locked decisions and `docs/design.md` for mechanics.
   Function signatures fully typed including return type.
 - snake_case for files, variables, functions. PascalCase for classes
   and `class_name` declarations.
-- Gameplay scripts inherit `Node` or `Resource`. Never inherit
-  `Node2D` / `Sprite2D` directly — visuals live in child nodes of the
-  scene, owned by the gameplay node.
+- Gameplay scripts attach to `Node`, `Resource`, or `SG*` nodes
+  (`SGFixedNode2D`, `SGCharacterBody2D`, `SGStaticBody2D`,
+  `SGArea2D`). Never inherit plain `Node2D` / `Sprite2D` for gameplay
+  — the floating-point transform on those is not deterministic.
+  Visuals (sprites, labels, particles) live as children of the
+  gameplay node; SG nodes update their float transform from the
+  fixed transform automatically.
 - One class per file. File name matches the class.
 
 ## Commits

@@ -1,0 +1,28 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="SGRectangleShape2D" id="rect_floor"]
+extents_x = 18350080
+extents_y = 524288
+
+[node name="TestStage" type="Node2D"]
+
+[node name="Background" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, 0, 480, 0, 480, 270, 0, 270)
+color = Color(0.18, 0.2, 0.27, 1)
+
+[node name="FloorVisual" type="Polygon2D" parent="."]
+position = Vector2(240, 220)
+polygon = PackedVector2Array(-280, -8, 280, -8, 280, 8, -280, 8)
+color = Color(0.32, 0.22, 0.14, 1)
+
+[node name="Floor" type="SGStaticBody2D" parent="."]
+fixed_position_x = 15728640
+fixed_position_y = 14417920
+position = Vector2(240, 220)
+
+[node name="FloorShape" type="SGCollisionShape2D" parent="Floor"]
+shape = SubResource("rect_floor")
+
+[node name="Camera" type="Camera2D" parent="."]
+position = Vector2(240, 135)
+zoom = Vector2(1, 1)

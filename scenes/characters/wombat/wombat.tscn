@@ -1,0 +1,33 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/characters/wombat/wombat.gd" id="1_wombat"]
+
+[sub_resource type="SGRectangleShape2D" id="rect_body"]
+extents_x = 524288
+extents_y = 1048576
+
+[node name="Wombat" type="SGCharacterBody2D"]
+script = ExtResource("1_wombat")
+
+[node name="BodyShape" type="SGCollisionShape2D" parent="."]
+shape = SubResource("rect_body")
+
+[node name="BodyVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-8, -16, 8, -16, 8, 16, -8, 16)
+color = Color(0.55, 0.35, 0.2, 1)
+
+[node name="EyeLeft" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-5, -10, -2, -10, -2, -7, -5, -7)
+color = Color(0.05, 0.05, 0.05, 1)
+
+[node name="EyeRight" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(2, -10, 5, -10, 5, -7, 2, -7)
+color = Color(0.05, 0.05, 0.05, 1)
+
+[node name="PercentLabel" type="Label" parent="."]
+offset_left = -20.0
+offset_top = -42.0
+offset_right = 20.0
+offset_bottom = -28.0
+text = "0%"
+horizontal_alignment = 1

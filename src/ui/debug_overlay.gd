@@ -1,0 +1,36 @@
+extends CanvasLayer
+
+# Debug HUD: top-left monospace readout of sim frame, P1 state, input
+# snapshot tail, and percentages. Reads FightManager once per render
+# frame — not in the sim path, so signals/await/whatever are fine here
+# (this is UI, not gameplay).
+
+@export var fight_manager_path: NodePath
+@onready var _label: Label = $Label
+
+var _fight_manager: Node
+
+
+func _ready() -> void:
+	_fight_manager = get_node_or_null(fight_manager_path)
+
+
+func _process(_delta: float) -> void:
+	if _fight_manager == null:
+		_label.text = "(no fight manager)"
+		return
+	var d: Dictionary = _fight_manager.get_debug_state()
+	var inp: Dictionary = d.input
+	var move_glyph: String = "."
+	if inp.get("move_x", 0) < 0:
+		move_glyph = "<"
+	elif inp.get("move_x", 0) > 0:
+		move_glyph = ">"
+	var jump_glyph: String = "J" if inp.get("jump", false) else "."
+	var atk_glyph: String = "A" if inp.get("attack", false) else "."
+	_label.text = ("frame: %d\n" % d.frame
+		+ "p1 state: %s\n" % d.p1_state
+		+ "p1 input: [%s%s%s]\n" % [move_glyph, jump_glyph, atk_glyph]
+		+ "p1 %%: %d\n" % d.p1_percent
+		+ "dummy %%: %d\n" % d.dummy_percent
+		+ ("%s" % d.ko if d.ko != "" else ""))

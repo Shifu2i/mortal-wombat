@@ -54,11 +54,22 @@ const ROLL_ANGLE_DEG: int = 20
 
 # Block (K): wombats use the cartilaginous plate in their rump as a
 # shield. While held, character is rooted, takes a fraction of incoming
-# damage and almost no knockback. Phase 1 has no stamina — that's a
-# tuning concern for later.
+# damage and almost no knockback.
 const BLOCK_DAMAGE_DIVISOR: int = 4
 const BLOCK_KB_DIVISOR: int = 5
 const BLOCK_HITSTUN_DIVISOR: int = 2
+
+# Stamina: integer units so the meter is rollback-deterministic. Drains
+# faster than it regens — sitting in block forever isn't viable. Eating
+# a hit while blocking costs extra stamina proportional to the damage
+# absorbed. When it hits zero the shield breaks: forced exit plus a
+# lockout window before block can be entered again.
+const BLOCK_STAMINA_MAX: int = 180
+const BLOCK_STAMINA_DRAIN_PER_FRAME: int = 2
+const BLOCK_STAMINA_REGEN_PER_FRAME: int = 1
+const BLOCK_STAMINA_HIT_COST_PER_DMG: int = 4
+const BLOCK_STAMINA_MIN_TO_ENTER: int = 20
+const BLOCK_BREAK_LOCKOUT_FRAMES: int = 90
 
 # Aerial bonus: aerial bites/kicks deal AERIAL_BONUS_DAMAGE extra
 # percent and are aimed in 8 directions from WASD held at the press.
@@ -86,6 +97,10 @@ var _spawn_position_fx_y: int = 0
 var _hitbox_visual: Polygon2D = null
 var _percent_label: Label = null
 var _visual: Node2D = null
+var _stamina_fg: Polygon2D = null
+
+var block_stamina: int = BLOCK_STAMINA_MAX
+var block_lockout: int = 0
 
 # KO counter — incremented every time the fighter crosses the blast zone
 # and gets teleported back to spawn. Unlimited (no stock system in
@@ -131,6 +146,9 @@ func _ready() -> void:
 	_visual = get_node_or_null("Visual") as Node2D
 	_apply_facing_to_visual()
 
+	_stamina_fg = get_node_or_null("StaminaBarFg") as Polygon2D
+	_refresh_stamina_bar()
+
 
 # Driven by FightManager. Never set on _physics_process directly.
 func tick(input: Dictionary, current_frame: int) -> void:
@@ -166,11 +184,23 @@ func tick(input: Dictionary, current_frame: int) -> void:
 		_tick_roll(current_frame)
 		_apply_roll_spin()
 	elif fsm.state == FsmRes.State.BLOCK:
-		# Rooted while held. Release K to drop the shield.
+		# Rooted while held. Drain stamina each tick; if it bottoms out
+		# the shield breaks and goes on lockout. Release K to drop.
 		v.x = 0
-		if not eff.block:
+		block_stamina -= BLOCK_STAMINA_DRAIN_PER_FRAME
+		if block_stamina <= 0:
+			block_stamina = 0
+			_shield_break(current_frame)
+		elif not eff.block:
 			_exit_block(current_frame)
 	else:
+		# Stamina regens outside of block. Lockout ticks down here too.
+		if block_stamina < BLOCK_STAMINA_MAX:
+			block_stamina = min(BLOCK_STAMINA_MAX,
+				block_stamina + BLOCK_STAMINA_REGEN_PER_FRAME)
+		if block_lockout > 0:
+			block_lockout -= 1
+
 		v.x = walk_speed_fx * eff.move_x
 		if eff.move_x != 0:
 			facing = eff.move_x
@@ -184,7 +214,9 @@ func tick(input: Dictionary, current_frame: int) -> void:
 		# Action priority: block > roll > kick > bite. Block needs to win
 		# over other actions so you can shield-cancel a walk; roll/kick
 		# are committal, bite is the spammy poke.
-		if eff.block and is_on_floor():
+		if (eff.block and is_on_floor()
+				and block_lockout == 0
+				and block_stamina >= BLOCK_STAMINA_MIN_TO_ENTER):
 			_enter_block(current_frame)
 		elif eff.roll_pressed and is_on_floor():
 			_begin_roll(current_frame)
@@ -199,6 +231,7 @@ func tick(input: Dictionary, current_frame: int) -> void:
 	move_and_slide()
 	_apply_facing_to_visual()
 	_refresh_percent_label()
+	_refresh_stamina_bar()
 
 
 func has_active_hitbox(current_frame: int) -> bool:
@@ -240,6 +273,12 @@ func apply_hit(hb: Resource, _attacker_facing: int = 1, damage_multiplier: int =
 	var damage: int = hb.damage * damage_multiplier
 	if blocking:
 		damage = max(1, damage / BLOCK_DAMAGE_DIVISOR)
+		# Taking a hit costs stamina too — turtling through a heavy
+		# string burns the shield faster than just holding it.
+		block_stamina -= damage * BLOCK_STAMINA_HIT_COST_PER_DMG
+		if block_stamina <= 0:
+			block_stamina = 0
+			_shield_break(0)
 	damage_percent += damage
 
 	var kb: Dictionary = KnockbackUtil.compute(damage_percent, hb)
@@ -274,10 +313,13 @@ func ko_and_respawn() -> void:
 	_active_hitbox = null
 	fsm = FsmRes.new()
 	ko_count += 1
+	block_stamina = BLOCK_STAMINA_MAX
+	block_lockout = 0
 	_hide_hitbox_visual()
 	_clear_block_visual()
 	_clear_roll_visual()
 	_refresh_percent_label()
+	_refresh_stamina_bar()
 
 
 func reset_to_spawn() -> void:
@@ -313,6 +355,14 @@ func _enter_block(current_frame: int) -> void:
 
 
 func _exit_block(current_frame: int) -> void:
+	_clear_block_visual()
+	fsm.transition_to(FsmRes.State.IDLE, current_frame)
+
+
+func _shield_break(current_frame: int) -> void:
+	# Stamina depleted: drop the shield and lock the input out for a
+	# spell. Visually flash the bar red via the modulate on the fg poly.
+	block_lockout = BLOCK_BREAK_LOCKOUT_FRAMES
 	_clear_block_visual()
 	fsm.transition_to(FsmRes.State.IDLE, current_frame)
 
@@ -500,6 +550,22 @@ func _clear_block_visual() -> void:
 	if _visual == null:
 		return
 	_visual.modulate = Color(1, 1, 1, 1)
+
+
+func _refresh_stamina_bar() -> void:
+	if _stamina_fg == null:
+		return
+	var ratio: float = float(block_stamina) / float(BLOCK_STAMINA_MAX)
+	ratio = clamp(ratio, 0.0, 1.0)
+	_stamina_fg.scale.x = ratio
+	# Red while broken/locked, amber when low, green otherwise. Pure
+	# visual — no gameplay reads from this colour.
+	if block_lockout > 0:
+		_stamina_fg.color = Color(0.85, 0.25, 0.25, 1)
+	elif ratio < 0.33:
+		_stamina_fg.color = Color(0.95, 0.7, 0.25, 1)
+	else:
+		_stamina_fg.color = Color(0.35, 0.85, 0.4, 1)
 
 
 func _empty_input() -> Dictionary:

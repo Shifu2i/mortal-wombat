@@ -9,6 +9,14 @@ const InputBufferRes := preload("res://src/core/input_buffer.gd")
 const TickClockRes := preload("res://src/core/tick_clock.gd")
 const FsmRes := preload("res://src/combat/state_machine.gd")
 const CharacterBase := preload("res://src/characters/character_base.gd")
+const SeededRngRes := preload("res://src/core/seeded_rng.gd")
+
+# Crits: 1-in-CRIT_DENOM hits double their damage. Roll comes from
+# SeededRng (see CLAUDE.md rule 3) so rollback resimulation lands the
+# same crits on every machine.
+const CRIT_DENOM: int = 20
+const CRIT_MULTIPLIER: int = 2
+@export var rng_seed: int = 0xC0FFEE
 
 @export var blast_zone: Rect2 = Rect2(-80, -80, 640, 430)
 # Default expands the 480x270 viewport by ~80px each side. Going outside
@@ -16,6 +24,7 @@ const CharacterBase := preload("res://src/characters/character_base.gd")
 
 var clock: TickClockRes = TickClockRes.new()
 var input_buffer: InputBufferRes
+var rng: SeededRngRes
 var fighters: Array = []  # CharacterBase
 var ko_event: String = ""  # consumed by debug overlay then cleared
 
@@ -27,6 +36,7 @@ func _ready() -> void:
 	input_buffer = InputBufferRes.new()
 	input_buffer.name = "InputBuffer"
 	add_child(input_buffer)
+	rng = SeededRngRes.new(rng_seed)
 
 	# Discover fighters: any CharacterBase descendant.
 	fighters.clear()
@@ -67,7 +77,14 @@ func _physics_process(_delta: float) -> void:
 			if attacker.hits_dealt_this_attack.has(victim.get_instance_id()):
 				continue
 			if hb_rect.intersects(victim.get_hurtbox_rect()):
-				victim.apply_hit(attacker.jab, attacker.facing)
+				var hb: Resource = attacker.get_active_hitbox()
+				if hb == null:
+					hb = attacker.jab
+				var is_crit: bool = rng.next_int(1, CRIT_DENOM) == 1
+				var mult: int = CRIT_MULTIPLIER if is_crit else 1
+				if is_crit:
+					ko_event = "CRIT x%d on frame %d" % [CRIT_MULTIPLIER, f_now]
+				victim.apply_hit(hb, attacker.facing, mult)
 				attacker.hits_dealt_this_attack[victim.get_instance_id()] = true
 
 	for fighter in fighters:
@@ -82,6 +99,7 @@ func _physics_process(_delta: float) -> void:
 func _reset_round() -> void:
 	clock.reset()
 	input_buffer.reset()
+	rng.reset(rng_seed)
 	for fighter in fighters:
 		fighter.reset_to_spawn()
 	ko_event = "RESET"

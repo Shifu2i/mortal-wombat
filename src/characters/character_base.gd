@@ -117,7 +117,10 @@ func tick(input: Dictionary, current_frame: int) -> void:
 			v.y = -jv
 			jumps_used += 1
 			fsm.transition_to(FsmRes.State.JUMP_RISE, current_frame)
-		if eff.attack_pressed and is_on_floor():
+		if eff.attack_pressed:
+			# Phase 1: jab works grounded or airborne. Aerials may want a
+			# separate move later, but for prototype usability one button
+			# always swings.
 			_begin_attack(current_frame)
 			v.x = 0
 		_update_locomotion_state(eff.move_x, current_frame)

@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/core/fight_manager.gd" id="1_fm"]
+[ext_resource type="PackedScene" path="res://scenes/stage/test_stage.tscn" id="2_stage"]
+[ext_resource type="PackedScene" path="res://scenes/characters/wombat/wombat.tscn" id="3_wombat"]
+[ext_resource type="Script" path="res://src/ui/debug_overlay.gd" id="4_dbg"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_fm")
+
+[node name="TestStage" parent="." instance=ExtResource("2_stage")]
+
+[node name="PlayerWombat" parent="." instance=ExtResource("3_wombat")]
+fixed_position_x = 13107200
+fixed_position_y = 11796480
+position = Vector2(200, 180)
+player_slot = 0
+is_dummy = false
+
+[node name="DummyWombat" parent="." instance=ExtResource("3_wombat")]
+fixed_position_x = 19005440
+fixed_position_y = 11796480
+position = Vector2(290, 180)
+player_slot = 1
+is_dummy = true
+
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("4_dbg")
+fight_manager_path = NodePath("..")
+
+[node name="Label" type="Label" parent="DebugOverlay"]
+offset_left = 4.0
+offset_top = 2.0
+offset_right = 220.0
+offset_bottom = 90.0
+text = "..."
+theme_override_colors/font_color = Color(1, 1, 0.7, 1)

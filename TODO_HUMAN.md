@@ -10,6 +10,9 @@ you complete them.
       load automatically (no plugin-enable step needed for
       GDExtensions). If you see "Could not open library" errors for
       `libsgphysics2d.*`, double-check you opened with Godot 4.1+.
+      (Headless import + script parse + 30-tick scene run already
+      verified clean in CI; if something breaks in the editor it's
+      almost certainly platform-specific.)
 - [ ] **Mac / ARM users**: upstream v1.0.0-alpha13 only ships
       Linux + Windows x86_64 binaries. To build the macOS dylib or
       ARM .so, clone https://gitlab.com/snopek-games/sg-physics-2d

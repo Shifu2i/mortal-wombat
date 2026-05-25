@@ -24,7 +24,9 @@ func reset(new_seed: int) -> void:
 func next_u64() -> int:
 	var x: int = _state
 	if x == 0:
-		x = 0x9E3779B97F4A7C15
+		# Non-zero seed required for xorshift; this is the 64-bit golden
+		# ratio with the sign bit cleared so it fits in signed int64.
+		x = 0x1E3779B97F4A7C15
 	x ^= x << 13
 	x ^= x >> 7
 	x ^= x << 17

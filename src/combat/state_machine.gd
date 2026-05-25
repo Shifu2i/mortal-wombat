@@ -13,7 +13,10 @@ enum State {
 	RUN,
 	JUMP_RISE,
 	FALL,
-	ATTACK_NEUTRAL,
+	ATTACK_BITE,
+	ATTACK_KICK,
+	ROLL,
+	BLOCK,
 	HITSTUN,
 }
 
@@ -40,6 +43,9 @@ static func state_name(s: int) -> String:
 		State.RUN: return "RUN"
 		State.JUMP_RISE: return "JUMP"
 		State.FALL: return "FALL"
-		State.ATTACK_NEUTRAL: return "JAB"
+		State.ATTACK_BITE: return "BITE"
+		State.ATTACK_KICK: return "KICK"
+		State.ROLL: return "ROLL"
+		State.BLOCK: return "BLOCK"
 		State.HITSTUN: return "HITSTUN"
 	return "?"

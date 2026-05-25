@@ -15,7 +15,7 @@ const FsmRes := preload("res://src/combat/state_machine.gd")
 
 @export var player_slot: int = 0
 @export var is_dummy: bool = false
-@export var jab: Resource  # Hitbox resource; defaults if null
+@export var jab: Resource  # Hitbox resource for the bite; defaults if null
 
 # Movement constants — computed in _ready from SGFixed (fixed-point,
 # per-tick). 1 SG unit = 1 pixel at the 480x270 base resolution.
@@ -24,14 +24,44 @@ var jump_vel_fx: int
 var double_jump_vel_fx: int
 var gravity_fx: int
 var max_fall_fx: int
+var roll_speed_fx: int
 
-# Attack timeline (jab) in frames.
-const JAB_STARTUP: int = 3
-const JAB_ACTIVE_END: int = 6  # startup(3) + active(3) — frames 3..5 are hot
-const JAB_TOTAL: int = 12
+# Bite (J): the original jab, just renamed. Quick, low-commit poke.
+const BITE_STARTUP: int = 3
+const BITE_ACTIVE_END: int = 6
+const BITE_TOTAL: int = 12
 
-# Aerial bonus: aerial jabs deal AERIAL_BONUS_DAMAGE extra percent and are
-# aimed in 8 directions from WASD held at the moment of the press.
+# Kick (I): slower, longer reach, more damage. Grounded or aerial.
+const KICK_STARTUP: int = 6
+const KICK_ACTIVE_END: int = 10
+const KICK_TOTAL: int = 20
+const KICK_DAMAGE: int = 13
+const KICK_BASE_KB: int = 45
+const KICK_KB_SCALE: float = 1.3
+const KICK_SIZE: Vector2i = Vector2i(26, 14)
+const KICK_OFFSET: int = 20
+const KICK_ANGLE_DEG: int = 35
+
+# Roll (U): ground-only forward roll with damage on contact. Locks
+# facing, fast horizontal movement, body is the hitbox.
+const ROLL_STARTUP: int = 2
+const ROLL_ACTIVE_END: int = 22
+const ROLL_TOTAL: int = 26
+const ROLL_DAMAGE: int = 8
+const ROLL_BASE_KB: int = 25
+const ROLL_KB_SCALE: float = 0.9
+const ROLL_ANGLE_DEG: int = 20
+
+# Block (K): wombats use the cartilaginous plate in their rump as a
+# shield. While held, character is rooted, takes a fraction of incoming
+# damage and almost no knockback. Phase 1 has no stamina — that's a
+# tuning concern for later.
+const BLOCK_DAMAGE_DIVISOR: int = 4
+const BLOCK_KB_DIVISOR: int = 5
+const BLOCK_HITSTUN_DIVISOR: int = 2
+
+# Aerial bonus: aerial bites/kicks deal AERIAL_BONUS_DAMAGE extra
+# percent and are aimed in 8 directions from WASD held at the press.
 const AERIAL_BONUS_DAMAGE: int = 5
 
 # Character body extents in pixels — must match the SGCollisionShape2D set
@@ -75,6 +105,7 @@ func _ready() -> void:
 	double_jump_vel_fx = sg.from_float(3.5)
 	gravity_fx = sg.from_float(0.2)
 	max_fall_fx = sg.from_int(5)
+	roll_speed_fx = sg.from_int(4)
 
 	fsm = FsmRes.new()
 	if jab == null:
@@ -94,11 +125,9 @@ func _ready() -> void:
 	var up: SGFixedVector2 = sg.vector2(0, -sg.from_int(1))
 	set_up_direction(up)
 
-	# Cache the percent label if the scene includes one.
 	_percent_label = get_node_or_null("PercentLabel") as Label
 	_refresh_percent_label()
 
-	# Cache the visual subtree so we can mirror it by facing.
 	_visual = get_node_or_null("Visual") as Node2D
 	_apply_facing_to_visual()
 
@@ -121,30 +150,49 @@ func tick(input: Dictionary, current_frame: int) -> void:
 
 	if hitstun_remaining > 0:
 		hitstun_remaining -= 1
-		# Don't override velocity — momentum from the hit carries us.
 		if hitstun_remaining == 0:
 			_settle_state_after_hitstun(current_frame)
-	elif fsm.state == FsmRes.State.ATTACK_NEUTRAL:
-		# Walk speed is still input-driven during the jab — the swing
-		# doesn't lock movement, so the player can attack mid-dash and
-		# chase knockback without stopping. Facing is locked from the
-		# moment the attack began so the hitbox stays aimed.
+	elif fsm.state == FsmRes.State.ATTACK_BITE or fsm.state == FsmRes.State.ATTACK_KICK:
+		# Movement still input-driven during a strike — the player can
+		# chase knockback. Facing is locked from the moment the attack
+		# began so the hitbox stays aimed.
 		v.x = walk_speed_fx * eff.move_x
 		_tick_attack(current_frame)
+	elif fsm.state == FsmRes.State.ROLL:
+		# Forward roll: fixed velocity in the facing direction; player
+		# can't steer or jump out. Releases the BLOCK/attack queue at
+		# the end like any other action.
+		v.x = roll_speed_fx * facing
+		_tick_roll(current_frame)
+		_apply_roll_spin()
+	elif fsm.state == FsmRes.State.BLOCK:
+		# Rooted while held. Release K to drop the shield.
+		v.x = 0
+		if not eff.block:
+			_exit_block(current_frame)
 	else:
 		v.x = walk_speed_fx * eff.move_x
 		if eff.move_x != 0:
 			facing = eff.move_x
+
 		if eff.jump_pressed and jumps_used < MAX_JUMPS:
 			var jv: int = jump_vel_fx if jumps_used == 0 else double_jump_vel_fx
 			v.y = -jv
 			jumps_used += 1
 			fsm.transition_to(FsmRes.State.JUMP_RISE, current_frame)
-		if eff.attack_pressed:
-			# Phase 1: jab works grounded or airborne, walking or not.
-			# One button always swings. Aerial jabs aim per WASD and
-			# deal +AERIAL_BONUS_DAMAGE.
-			_begin_attack(eff, current_frame)
+
+		# Action priority: block > roll > kick > bite. Block needs to win
+		# over other actions so you can shield-cancel a walk; roll/kick
+		# are committal, bite is the spammy poke.
+		if eff.block and is_on_floor():
+			_enter_block(current_frame)
+		elif eff.roll_pressed and is_on_floor():
+			_begin_roll(current_frame)
+		elif eff.kick_pressed:
+			_begin_kick(eff, current_frame)
+		elif eff.attack_pressed:
+			_begin_bite(eff, current_frame)
+
 		_update_locomotion_state(eff.move_x, current_frame)
 
 	velocity = v
@@ -154,10 +202,15 @@ func tick(input: Dictionary, current_frame: int) -> void:
 
 
 func has_active_hitbox(current_frame: int) -> bool:
-	if fsm.state != FsmRes.State.ATTACK_NEUTRAL:
-		return false
 	var f: int = fsm.frames_in_state(current_frame)
-	return f >= JAB_STARTUP and f < JAB_ACTIVE_END
+	match fsm.state:
+		FsmRes.State.ATTACK_BITE:
+			return f >= BITE_STARTUP and f < BITE_ACTIVE_END
+		FsmRes.State.ATTACK_KICK:
+			return f >= KICK_STARTUP and f < KICK_ACTIVE_END
+		FsmRes.State.ROLL:
+			return f >= ROLL_STARTUP and f < ROLL_ACTIVE_END
+	return false
 
 
 func get_hitbox_rect() -> Rect2:
@@ -167,8 +220,6 @@ func get_hitbox_rect() -> Rect2:
 	# self-consistent within one tick. (For Phase 5 rollback, replace with
 	# fixed-point comparison.)
 	var hb: Resource = _active_hitbox if _active_hitbox != null else jab
-	# Offset already encodes direction (aim or facing), so no facing
-	# multiplication here.
 	var center: Vector2 = position + Vector2(hb.offset_px)
 	var size: Vector2 = Vector2(hb.size_px)
 	return Rect2(center - size * 0.5, size)
@@ -181,27 +232,35 @@ func get_hurtbox_rect() -> Rect2:
 
 
 func apply_hit(hb: Resource, _attacker_facing: int = 1, damage_multiplier: int = 1) -> void:
-	# Hitbox angle_degrees already encodes direction (grounded
-	# facing-mirrored, aerial aimed), so we don't flip velocity by
-	# attacker facing here. damage_multiplier is integer to keep
-	# damage_percent deterministic — crits pass 2.
-	damage_percent += hb.damage * damage_multiplier
+	# Blocking: the cartilaginous bum eats most of the impact. Future
+	# tuning could add directional checks (only blocks from rear), a
+	# stamina meter, and shield-break. For now it's a flat damage and
+	# knockback divisor with reduced hitstun.
+	var blocking: bool = fsm.state == FsmRes.State.BLOCK
+	var damage: int = hb.damage * damage_multiplier
+	if blocking:
+		damage = max(1, damage / BLOCK_DAMAGE_DIVISOR)
+	damage_percent += damage
+
 	var kb: Dictionary = KnockbackUtil.compute(damage_percent, hb)
-	velocity = kb.velocity_fixed
-	hitstun_remaining = kb.hitstun_frames
-	fsm.transition_to(FsmRes.State.HITSTUN, 0)
+	if blocking:
+		var v: SGFixedVector2 = kb.velocity_fixed
+		v.x = v.x / BLOCK_KB_DIVISOR
+		v.y = v.y / BLOCK_KB_DIVISOR
+		velocity = v
+		hitstun_remaining = max(1, kb.hitstun_frames / BLOCK_HITSTUN_DIVISOR)
+	else:
+		velocity = kb.velocity_fixed
+		hitstun_remaining = kb.hitstun_frames
+		fsm.transition_to(FsmRes.State.HITSTUN, 0)
+		_clear_block_visual()
+		_clear_roll_visual()
 	_refresh_percent_label()
 
 
 func ko_and_respawn() -> void:
-	# KO = teleport back to spawn + full state reset.
-	#
-	# set_fixed_position only marks the node's transform dirty; the SG
-	# physics server's collision rep doesn't sync until something else
-	# touches it. Without sync_to_physics_engine(), move_and_slide on
-	# the next tick still operates from the offscreen position, drags
-	# the visible position back outside the blast zone, and the KO
-	# loops every frame.
+	# See CLAUDE.md note on the SG teleport gotcha — sync_to_physics_engine
+	# after set_fixed_position is non-negotiable.
 	var sg: Object = Engine.get_singleton("SGFixed")
 	set_fixed_position(sg.vector2(_spawn_position_fx_x, _spawn_position_fx_y))
 	sync_to_physics_engine()
@@ -216,25 +275,49 @@ func ko_and_respawn() -> void:
 	fsm = FsmRes.new()
 	ko_count += 1
 	_hide_hitbox_visual()
+	_clear_block_visual()
+	_clear_roll_visual()
 	_refresh_percent_label()
 
 
-# Backwards-compat alias for any caller still using the old name.
 func reset_to_spawn() -> void:
 	ko_and_respawn()
 
 
-func _begin_attack(input: Dictionary, current_frame: int) -> void:
-	fsm.transition_to(FsmRes.State.ATTACK_NEUTRAL, current_frame)
+func _begin_bite(input: Dictionary, current_frame: int) -> void:
+	fsm.transition_to(FsmRes.State.ATTACK_BITE, current_frame)
 	current_attack_id += 1
 	hits_dealt_this_attack.clear()
-	_active_hitbox = _build_active_hitbox(input)
+	_active_hitbox = _build_bite_hitbox(input)
 
 
-# Builds a per-attack Hitbox derived from `jab`. Aerial attacks get a
-# damage bonus and are aimed via WASD; grounded attacks aim along the
-# current facing.
-func _build_active_hitbox(input: Dictionary) -> Resource:
+func _begin_kick(input: Dictionary, current_frame: int) -> void:
+	fsm.transition_to(FsmRes.State.ATTACK_KICK, current_frame)
+	current_attack_id += 1
+	hits_dealt_this_attack.clear()
+	_active_hitbox = _build_kick_hitbox(input)
+
+
+func _begin_roll(current_frame: int) -> void:
+	fsm.transition_to(FsmRes.State.ROLL, current_frame)
+	current_attack_id += 1
+	hits_dealt_this_attack.clear()
+	_active_hitbox = _build_roll_hitbox()
+
+
+func _enter_block(current_frame: int) -> void:
+	if fsm.state == FsmRes.State.BLOCK:
+		return
+	fsm.transition_to(FsmRes.State.BLOCK, current_frame)
+	_apply_block_visual()
+
+
+func _exit_block(current_frame: int) -> void:
+	_clear_block_visual()
+	fsm.transition_to(FsmRes.State.IDLE, current_frame)
+
+
+func _build_bite_hitbox(input: Dictionary) -> Resource:
 	var hb: Resource = HitboxRes.new()
 	hb.base_damage = jab.base_damage
 	hb.base_knockback = jab.base_knockback
@@ -244,25 +327,56 @@ func _build_active_hitbox(input: Dictionary) -> Resource:
 
 	var aerial: bool = not is_on_floor()
 	hb.damage = jab.damage + (AERIAL_BONUS_DAMAGE if aerial else 0)
+	_aim_hitbox(hb, input, jab.angle_degrees, 16)
+	return hb
 
+
+func _build_kick_hitbox(input: Dictionary) -> Resource:
+	var hb: Resource = HitboxRes.new()
+	hb.base_damage = KICK_DAMAGE
+	hb.base_knockback = KICK_BASE_KB
+	hb.knockback_scale = KICK_KB_SCALE
+	hb.active_frames = KICK_ACTIVE_END - KICK_STARTUP
+	hb.size_px = KICK_SIZE
+
+	var aerial: bool = not is_on_floor()
+	hb.damage = KICK_DAMAGE + (AERIAL_BONUS_DAMAGE if aerial else 0)
+	_aim_hitbox(hb, input, KICK_ANGLE_DEG, KICK_OFFSET)
+	return hb
+
+
+func _build_roll_hitbox() -> Resource:
+	# Roll's hitbox tracks the body — no aim, no aerial branch (ground
+	# only). Damage and knockback are modest; the appeal is mobility.
+	var hb: Resource = HitboxRes.new()
+	hb.damage = ROLL_DAMAGE
+	hb.base_damage = ROLL_DAMAGE
+	hb.base_knockback = ROLL_BASE_KB
+	hb.knockback_scale = ROLL_KB_SCALE
+	hb.active_frames = ROLL_ACTIVE_END - ROLL_STARTUP
+	hb.size_px = Vector2i(BODY_HALF_W * 2 + 4, BODY_HALF_H * 2)
+	var angle: int = ROLL_ANGLE_DEG if facing >= 0 else 180 - ROLL_ANGLE_DEG
+	hb.angle_degrees = angle
+	hb.offset_px = Vector2i(facing * 4, 0)
+	return hb
+
+
+func _aim_hitbox(hb: Resource, input: Dictionary, ground_angle_deg: int, reach: int) -> void:
+	var aerial: bool = not is_on_floor()
 	var aim_x: int = 0
 	var aim_y: int = 0
 	if aerial:
 		aim_x = input.get("move_x", 0)
 		aim_y = input.get("move_y", 0)
 	if aim_x == 0 and aim_y == 0:
-		# No direction held — aim forward along facing, slightly upward
-		# like the original grounded jab (40 deg).
-		var ground_angle: int = jab.angle_degrees if facing >= 0 else 180 - jab.angle_degrees
+		var ground_angle: int = ground_angle_deg if facing >= 0 else 180 - ground_angle_deg
 		hb.angle_degrees = ground_angle
 		var rad: float = float(ground_angle) * 0.017453292519943295
-		hb.offset_px = Vector2i(int(round(cos(rad) * 16.0)), int(round(-sin(rad) * 16.0)))
+		hb.offset_px = Vector2i(int(round(cos(rad) * reach)), int(round(-sin(rad) * reach)))
 	else:
-		# 8-direction aim. Angle: 0=right, 90=up, in math convention.
 		var rad: float = atan2(float(-aim_y), float(aim_x))
 		hb.angle_degrees = int(round(rad * 57.29577951308232))
-		hb.offset_px = Vector2i(int(round(cos(rad) * 16.0)), int(round(-sin(rad) * 16.0)))
-	return hb
+		hb.offset_px = Vector2i(int(round(cos(rad) * reach)), int(round(-sin(rad) * reach)))
 
 
 func get_active_hitbox() -> Resource:
@@ -271,15 +385,33 @@ func get_active_hitbox() -> Resource:
 
 func _tick_attack(current_frame: int) -> void:
 	var f: int = fsm.frames_in_state(current_frame)
-	if f == JAB_STARTUP:
-		_show_hitbox_visual()
-	elif f == JAB_ACTIVE_END:
-		_hide_hitbox_visual()
-	elif f >= JAB_TOTAL:
+	match fsm.state:
+		FsmRes.State.ATTACK_BITE:
+			if f == BITE_STARTUP:
+				_show_hitbox_visual()
+			elif f == BITE_ACTIVE_END:
+				_hide_hitbox_visual()
+			elif f >= BITE_TOTAL:
+				_settle_state_after_hitstun(current_frame)
+		FsmRes.State.ATTACK_KICK:
+			if f == KICK_STARTUP:
+				_show_hitbox_visual()
+			elif f == KICK_ACTIVE_END:
+				_hide_hitbox_visual()
+			elif f >= KICK_TOTAL:
+				_settle_state_after_hitstun(current_frame)
+
+
+func _tick_roll(current_frame: int) -> void:
+	var f: int = fsm.frames_in_state(current_frame)
+	if f >= ROLL_TOTAL:
+		_clear_roll_visual()
 		_settle_state_after_hitstun(current_frame)
 
 
 func _settle_state_after_hitstun(current_frame: int) -> void:
+	_clear_block_visual()
+	_clear_roll_visual()
 	if is_on_floor():
 		fsm.transition_to(FsmRes.State.IDLE, current_frame)
 	else:
@@ -287,7 +419,8 @@ func _settle_state_after_hitstun(current_frame: int) -> void:
 
 
 func _update_locomotion_state(move_x: int, current_frame: int) -> void:
-	if fsm.state == FsmRes.State.ATTACK_NEUTRAL or fsm.state == FsmRes.State.HITSTUN:
+	if fsm.state in [FsmRes.State.ATTACK_BITE, FsmRes.State.ATTACK_KICK,
+			FsmRes.State.ROLL, FsmRes.State.BLOCK, FsmRes.State.HITSTUN]:
 		return
 	if not is_on_floor():
 		var v: SGFixedVector2 = velocity
@@ -336,17 +469,51 @@ func _refresh_percent_label() -> void:
 func _apply_facing_to_visual() -> void:
 	if _visual == null:
 		return
-	# Mirror the whole visual subtree by flipping scale.x. The character
-	# polygons are authored facing +x; -x facing renders them mirrored.
+	# Don't fight the roll spin: while ROLLing, scale.x is set but the
+	# spin owns rotation; otherwise rotation is held at 0.
 	_visual.scale.x = float(facing)
+
+
+func _apply_roll_spin() -> void:
+	# Visual-only: rotate the sprite a chunk per tick so the roll reads
+	# as a tumble. With scale.x mirroring facing, positive rotation
+	# already looks like forward roll in both directions.
+	if _visual == null:
+		return
+	_visual.rotation += 0.45
+
+
+func _clear_roll_visual() -> void:
+	if _visual == null:
+		return
+	_visual.rotation = 0.0
+
+
+func _apply_block_visual() -> void:
+	if _visual == null:
+		return
+	# Steel-blue tint reads as "hardened". Cleared on any state change.
+	_visual.modulate = Color(0.65, 0.8, 1.05, 1.0)
+
+
+func _clear_block_visual() -> void:
+	if _visual == null:
+		return
+	_visual.modulate = Color(1, 1, 1, 1)
 
 
 func _empty_input() -> Dictionary:
 	return {
 		"move_x": 0,
+		"move_y": 0,
 		"jump": false,
 		"jump_pressed": false,
 		"attack": false,
 		"attack_pressed": false,
+		"kick": false,
+		"kick_pressed": false,
+		"roll": false,
+		"roll_pressed": false,
+		"block": false,
 		"reset_pressed": false,
 	}

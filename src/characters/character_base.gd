@@ -169,11 +169,12 @@ func get_hurtbox_rect() -> Rect2:
 	return Rect2(center - size * 0.5, size)
 
 
-func apply_hit(hb: Resource, _attacker_facing: int = 1) -> void:
-	# The hitbox's angle_degrees already encodes direction (grounded
+func apply_hit(hb: Resource, _attacker_facing: int = 1, damage_multiplier: int = 1) -> void:
+	# Hitbox angle_degrees already encodes direction (grounded
 	# facing-mirrored, aerial aimed), so we don't flip velocity by
-	# attacker facing here. Param kept for back-compat with callers.
-	damage_percent += hb.damage
+	# attacker facing here. damage_multiplier is integer to keep
+	# damage_percent deterministic — crits pass 2.
+	damage_percent += hb.damage * damage_multiplier
 	var kb: Dictionary = KnockbackUtil.compute(damage_percent, hb)
 	velocity = kb.velocity_fixed
 	hitstun_remaining = kb.hitstun_frames

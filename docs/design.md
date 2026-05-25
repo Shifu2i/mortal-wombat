@@ -40,12 +40,19 @@ All values in pixels and frames (60 fps). These tune later.
 | ground_friction     | 0.85  |
 | air_drag            | 0.95  |
 
+## Crits
+
+Every hit has a 1-in-20 (5%) chance to deal **2x damage**. The roll
+comes from `SeededRng` (seed in `FightManager.rng_seed`, default
+`0xC0FFEE`) so rollback resimulation reproduces the same crits on
+every machine. The roll fires per hit landed, not per attack press.
+
 ## Attack — neutral jab
 
 - Startup: 3 frames
 - Active: 3 frames (hitbox spawned)
 - Recovery: 6 frames
-- Hitbox damage: 8 (+5 if airborne)
+- Hitbox damage: 8 (+5 if airborne, then x2 if it crits)
 - Hitbox angle: 40 degrees grounded (mirrored by facing). Aerial jabs
   read WASD at the press-frame and snap to one of 8 directions; the
   hitbox offset and knockback angle both follow the aim.

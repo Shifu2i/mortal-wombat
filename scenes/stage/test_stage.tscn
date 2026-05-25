@@ -1,8 +1,16 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [sub_resource type="SGRectangleShape2D" id="rect_floor"]
 extents_x = 18350080
 extents_y = 524288
+
+[sub_resource type="SGRectangleShape2D" id="rect_top_platform"]
+extents_x = 2621440
+extents_y = 262144
+
+[sub_resource type="SGRectangleShape2D" id="rect_side_platform"]
+extents_x = 1966080
+extents_y = 262144
 
 [node name="TestStage" type="Node2D"]
 
@@ -10,10 +18,19 @@ extents_y = 524288
 polygon = PackedVector2Array(0, 0, 480, 0, 480, 270, 0, 270)
 color = Color(0.18, 0.2, 0.27, 1)
 
+[node name="SkyGradient" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, 0, 480, 0, 480, 110, 0, 110)
+color = Color(0.24, 0.27, 0.36, 1)
+
 [node name="FloorVisual" type="Polygon2D" parent="."]
 position = Vector2(240, 220)
 polygon = PackedVector2Array(-280, -8, 280, -8, 280, 8, -280, 8)
 color = Color(0.32, 0.22, 0.14, 1)
+
+[node name="FloorTop" type="Polygon2D" parent="."]
+position = Vector2(240, 213)
+polygon = PackedVector2Array(-280, -1, 280, -1, 280, 1, -280, 1)
+color = Color(0.45, 0.32, 0.2, 1)
 
 [node name="Floor" type="SGStaticBody2D" parent="."]
 fixed_position_x = 15728640
@@ -22,6 +39,42 @@ position = Vector2(240, 220)
 
 [node name="FloorShape" type="SGCollisionShape2D" parent="Floor"]
 shape = SubResource("rect_floor")
+
+[node name="TopPlatform" type="SGStaticBody2D" parent="."]
+fixed_position_x = 15728640
+fixed_position_y = 8519680
+position = Vector2(240, 130)
+
+[node name="TopPlatformShape" type="SGCollisionShape2D" parent="TopPlatform"]
+shape = SubResource("rect_top_platform")
+
+[node name="TopPlatformVisual" type="Polygon2D" parent="TopPlatform"]
+polygon = PackedVector2Array(-40, -4, 40, -4, 40, 4, -40, 4)
+color = Color(0.32, 0.22, 0.14, 1)
+
+[node name="LeftPlatform" type="SGStaticBody2D" parent="."]
+fixed_position_x = 8519680
+fixed_position_y = 11534336
+position = Vector2(130, 176)
+
+[node name="LeftPlatformShape" type="SGCollisionShape2D" parent="LeftPlatform"]
+shape = SubResource("rect_side_platform")
+
+[node name="LeftPlatformVisual" type="Polygon2D" parent="LeftPlatform"]
+polygon = PackedVector2Array(-30, -4, 30, -4, 30, 4, -30, 4)
+color = Color(0.32, 0.22, 0.14, 1)
+
+[node name="RightPlatform" type="SGStaticBody2D" parent="."]
+fixed_position_x = 22937600
+fixed_position_y = 11534336
+position = Vector2(350, 176)
+
+[node name="RightPlatformShape" type="SGCollisionShape2D" parent="RightPlatform"]
+shape = SubResource("rect_side_platform")
+
+[node name="RightPlatformVisual" type="Polygon2D" parent="RightPlatform"]
+polygon = PackedVector2Array(-30, -4, 30, -4, 30, 4, -30, 4)
+color = Color(0.32, 0.22, 0.14, 1)
 
 [node name="Camera" type="Camera2D" parent="."]
 position = Vector2(240, 135)

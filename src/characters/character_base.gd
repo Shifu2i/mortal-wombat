@@ -36,8 +36,8 @@ const AERIAL_BONUS_DAMAGE: int = 5
 
 # Character body extents in pixels — must match the SGCollisionShape2D set
 # up in wombat.tscn. Used for hurtbox AABB queries.
-const BODY_HALF_W: int = 8
-const BODY_HALF_H: int = 16
+const BODY_HALF_W: int = 12
+const BODY_HALF_H: int = 20
 
 var fsm: FsmRes
 var damage_percent: int = 0
@@ -55,6 +55,7 @@ var _spawn_position_fx_x: int = 0
 var _spawn_position_fx_y: int = 0
 var _hitbox_visual: Polygon2D = null
 var _percent_label: Label = null
+var _visual: Node2D = null
 
 # KO counter — incremented every time the fighter crosses the blast zone
 # and gets teleported back to spawn. Unlimited (no stock system in
@@ -96,6 +97,10 @@ func _ready() -> void:
 	# Cache the percent label if the scene includes one.
 	_percent_label = get_node_or_null("PercentLabel") as Label
 	_refresh_percent_label()
+
+	# Cache the visual subtree so we can mirror it by facing.
+	_visual = get_node_or_null("Visual") as Node2D
+	_apply_facing_to_visual()
 
 
 # Driven by FightManager. Never set on _physics_process directly.
@@ -144,6 +149,7 @@ func tick(input: Dictionary, current_frame: int) -> void:
 
 	velocity = v
 	move_and_slide()
+	_apply_facing_to_visual()
 	_refresh_percent_label()
 
 
@@ -325,6 +331,14 @@ func _refresh_percent_label() -> void:
 	if _percent_label == null:
 		return
 	_percent_label.text = "%d%%" % damage_percent
+
+
+func _apply_facing_to_visual() -> void:
+	if _visual == null:
+		return
+	# Mirror the whole visual subtree by flipping scale.x. The character
+	# polygons are authored facing +x; -x facing renders them mirrored.
+	_visual.scale.x = float(facing)
 
 
 func _empty_input() -> Dictionary:

@@ -80,6 +80,9 @@ func _sample_local_player() -> Dictionary:
 		"move_y": _axis("move_up", "move_down"),
 		"jump": Input.is_action_pressed("jump"),
 		"attack": Input.is_action_pressed("attack"),
+		"kick": Input.is_action_pressed("kick"),
+		"roll": Input.is_action_pressed("roll"),
+		"block": Input.is_action_pressed("block"),
 	}
 	var prev: Dictionary = _prev_held[0]
 	var snap: Dictionary = {
@@ -89,6 +92,11 @@ func _sample_local_player() -> Dictionary:
 		"jump_pressed": held.jump and not prev.get("jump", false),
 		"attack": held.attack,
 		"attack_pressed": held.attack and not prev.get("attack", false),
+		"kick": held.kick,
+		"kick_pressed": held.kick and not prev.get("kick", false),
+		"roll": held.roll,
+		"roll_pressed": held.roll and not prev.get("roll", false),
+		"block": held.block,
 		"reset_pressed": Input.is_action_just_pressed("reset"),
 	}
 	_prev_held[0] = held
@@ -112,5 +120,10 @@ func _empty_snapshot() -> Dictionary:
 		"jump_pressed": false,
 		"attack": false,
 		"attack_pressed": false,
+		"kick": false,
+		"kick_pressed": false,
+		"roll": false,
+		"roll_pressed": false,
+		"block": false,
 		"reset_pressed": false,
 	}

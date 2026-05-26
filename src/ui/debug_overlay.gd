@@ -27,10 +27,13 @@ func _process(_delta: float) -> void:
 	elif inp.get("move_x", 0) > 0:
 		move_glyph = ">"
 	var jump_glyph: String = "J" if inp.get("jump", false) else "."
-	var atk_glyph: String = "A" if inp.get("attack", false) else "."
+	var atk_glyph: String = "B" if inp.get("attack", false) else "."
+	var kick_glyph: String = "K" if inp.get("kick", false) else "."
+	var roll_glyph: String = "R" if inp.get("roll", false) else "."
+	var block_glyph: String = "S" if inp.get("block", false) else "."
 	_label.text = ("frame: %d\n" % d.frame
 		+ "p1 state: %s\n" % d.p1_state
-		+ "p1 input: [%s%s%s]\n" % [move_glyph, jump_glyph, atk_glyph]
+		+ "p1 input: [%s%s%s%s%s%s]\n" % [move_glyph, jump_glyph, atk_glyph, kick_glyph, roll_glyph, block_glyph]
 		+ "p1 %%: %d (KOs: %d)\n" % [d.p1_percent, d.p1_kos]
 		+ "dummy %%: %d (KOs: %d)\n" % [d.dummy_percent, d.dummy_kos]
 		+ ("%s" % d.ko if d.ko != "" else ""))

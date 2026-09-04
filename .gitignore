@@ -3,7 +3,8 @@
 .import/
 *.import
 export.cfg
-export_presets.cfg
+# export_presets.cfg IS committed: the Web preset is what produces the
+# `web/` build that Vercel serves, so it needs to travel with the repo.
 
 # Imported translations (automatically generated from CSV files)
 *.translation

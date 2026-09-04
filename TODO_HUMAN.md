@@ -37,7 +37,28 @@ you complete them.
       `prompts/phase-1-prototype.md`.
 - [ ] Note any feel issues — don't tune yet, just log them for Phase 4.
 
-## Phase 1 — art (optional, can stay rectangles)
+## Phase 1 — art
 
-- [ ] Replace the coloured rectangle in `wombat.tscn` with a real
-      placeholder sprite if you feel like it. Not required.
+The current look is a procedural polish pass (layered dusk backdrop,
+outlined/shaded polygon wombats, hit sparks, dust, camera shake,
+vignette). That is the ceiling for polygons at 480x270. Going further
+needs a pixel artist — these can't be done from a coding session:
+
+- [ ] **Wombat sprite sheet.** Idle (4f breathing), run (6f), jump /
+      fall (1f each), bite (3f), kick (4f), roll (4f, loops), block
+      (1f), hitstun (1f). 24x40 px cell, facing right; the code
+      mirrors for left. Drop PNGs under `assets/characters/wombat/`
+      and swap `Visual` in `wombat.tscn` for an `AnimatedSprite2D`.
+      Gameplay code does not need to change — only
+      `_apply_facing_to_visual` / `_refresh_visual_tint` touch the
+      visual node.
+- [ ] **Stage tileset / parallax.** Replace the generated polygons in
+      `test_stage.tscn` (`Backdrop`, `Ground`, platform visuals) with
+      painted layers. Keep the `SGStaticBody2D` nodes exactly where
+      they are; only their visual children change.
+- [ ] **Effect sprites.** `HitSpark` / `DustPuff` are polygon-based and
+      fine, but painted spark and dust frames will read better.
+- [ ] **Pixel font** for the percent labels (the default font is
+      vector and blurs slightly under the integer-scale stretch).
+- [ ] Judge the camera shake amount in `stage_camera.gd` by feel
+      (`shake()` is called with 1.5–6.3 px from `character_base.gd`).

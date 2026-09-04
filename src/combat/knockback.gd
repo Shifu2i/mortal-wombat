@@ -16,7 +16,11 @@ const DEG_TO_RAD: float = 0.017453292519943295
 const SPEED_SCALE: float = 20.0
 
 
-static func compute(damage_percent: int, hitbox: Hitbox) -> Dictionary:
+# `hitbox` is typed Resource rather than Hitbox on purpose: this is
+# reached via a preload() const, and a class_name in a static signature
+# fails to resolve on a fresh checkout before the editor has built its
+# global class cache (Godot 4.2). Duck-typed access is identical.
+static func compute(damage_percent: int, hitbox: Resource) -> Dictionary:
 	var dp: float = float(damage_percent)
 	var bd: float = float(hitbox.base_damage)
 	var launch_speed: float = (dp * 0.1 + dp * bd * 0.05) * hitbox.knockback_scale + float(hitbox.base_knockback)

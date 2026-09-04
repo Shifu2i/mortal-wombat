@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mortal Wombat</title>
+<meta name="description" content="A 2D platform fighter with Australian animals. Godot 4, deterministic 60Hz simulation, rollback-ready.">
+<meta property="og:title" content="Mortal Wombat">
+<meta property="og:description" content="A 2D platform fighter with Australian animals.">
+<meta property="og:image" content="/still.png">
+<style>
+  :root{
+    --bg:#171426; --panel:#221d38; --edge:#372e57;
+    --ink:#f3ecdf; --dim:#a89bc4; --hot:#e8823c; --go:#5cc46a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; font:16px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(900px 420px at 78% 8%, rgba(232,150,80,.22), transparent 60%),
+      linear-gradient(180deg,#100e1c 0%, #171426 45%, #241a2c 100%);
+    display:flex; align-items:center; justify-content:center; padding:32px 20px;
+  }
+  .wrap{width:100%; max-width:760px}
+  h1{
+    margin:0; font-size:clamp(34px,7vw,60px); line-height:1.02; letter-spacing:-.02em; font-weight:800;
+    background:linear-gradient(94deg,#ffd9a8,#e8823c 55%,#c05a9e);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub{margin:10px 0 24px; color:var(--dim); font-size:17px}
+  .screen{
+    border:1px solid var(--edge); border-radius:14px; overflow:hidden; background:#0d0b16;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  .screen img{display:block; width:100%; image-rendering:pixelated}
+  .cap{
+    padding:9px 14px; font-size:13px; color:var(--dim);
+    border-top:1px solid var(--edge); background:var(--panel);
+  }
+  .row{display:flex; flex-wrap:wrap; gap:12px; margin:22px 0 8px}
+  a.btn{
+    display:inline-flex; align-items:center; gap:9px; text-decoration:none; font-weight:650;
+    padding:12px 20px; border-radius:10px; border:1px solid var(--edge);
+    color:var(--ink); background:var(--panel); transition:.15s transform,.15s border-color;
+  }
+  a.btn:hover{transform:translateY(-1px); border-color:var(--hot)}
+  a.btn.play{background:linear-gradient(180deg,#f0913f,#d46f28); border-color:#f0a75c; color:#231103}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-top:26px}
+  .card{border:1px solid var(--edge); background:var(--panel); border-radius:11px; padding:14px 16px}
+  .card h3{margin:0 0 6px; font-size:13px; letter-spacing:.09em; text-transform:uppercase; color:var(--hot)}
+  .card p{margin:0; font-size:14px; color:var(--dim)}
+  kbd{
+    font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace; background:#100e1c; color:var(--ink);
+    border:1px solid var(--edge); border-bottom-width:2px; border-radius:5px; padding:2px 7px;
+  }
+  table{width:100%; border-collapse:collapse; margin-top:6px}
+  td{padding:5px 0; font-size:14px; color:var(--dim); border-bottom:1px solid rgba(255,255,255,.05)}
+  td:first-child{width:112px}
+  footer{margin-top:28px; font-size:13px; color:#7d719b}
+  footer a{color:#a89bc4}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mortal Wombat</h1>
+  <p class="sub">A 2D platform fighter with Australian animals. Built in Godot 4 on a deterministic 60&nbsp;Hz simulation tick, rollback&#8209;ready from line one.</p>
+
+  <div class="screen">
+    <img src="preview.gif" alt="Gameplay: a wombat walks in, bites, kicks, double jumps, rolls and blocks" width="480" height="270">
+    <div class="cap">Recorded from the running game &middot; 480&times;270 &middot; bite, kick, double jump, roll, block</div>
+  </div>
+
+  <div class="row">
+    <a class="btn play" href="play/">Play in browser</a>
+    <a class="btn" href="https://github.com/Shifu2i/mortal-wombat">Source on GitHub</a>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Controls</h3>
+      <table>
+        <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>Move</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Jump (double)</td></tr>
+        <tr><td><kbd>J</kbd></td><td>Bite</td></tr>
+        <tr><td><kbd>I</kbd></td><td>Kick</td></tr>
+        <tr><td><kbd>U</kbd></td><td>Roll attack</td></tr>
+        <tr><td><kbd>K</kbd></td><td>Block</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reset</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Determinism</h3>
+      <p>Fixed-point physics via SG&nbsp;Physics&nbsp;2D. No <code>delta</code> in gameplay, no signals, no deferred calls. All randomness seeded.</p>
+    </div>
+    <div class="card">
+      <h3>Block stamina</h3>
+      <p>The wombat's hardened rump absorbs hits, but the meter drains while held and breaks with a lockout if you turtle.</p>
+    </div>
+  </div>
+
+  <footer>Phase 1 prototype &middot; placeholder art &middot; <a href="https://github.com/Shifu2i/mortal-wombat">Shifu2i/mortal-wombat</a></footer>
+</div>
+</body>
+</html>

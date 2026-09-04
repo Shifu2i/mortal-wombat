@@ -77,3 +77,22 @@ locked decisions and `docs/design.md` for mechanics.
   position and drags the visible position right back to where it
   was. `character_base.ko_and_respawn()` calls
   `sync_to_physics_engine()` for this reason.
+- **Visual FX live in `src/fx/`** (`HitSpark`, `DustPuff`,
+  `StageCamera`). They animate on `_process(delta)` and use floats,
+  which is allowed because nothing in the sim reads them. They are
+  spawned from `character_base` by plain `add_child` on the parent
+  (no signals, no deferred calls). Spark directions are index-derived
+  rather than random so `SeededRng` stays gameplay-only. The camera
+  is found via the `stage_camera` group.
+- **`Knockback.compute` takes `hitbox: Resource`, not `Hitbox`.** It's
+  reached through a `preload()` const, and on a fresh checkout (no
+  `.godot/global_script_class_cache.cfg` yet) Godot 4.2 cannot resolve
+  a `class_name` in a static signature, which cascades into
+  `character_base` → `fight_manager` → `wombat.gd` parse failures.
+  Duck-typing the parameter avoids the cache dependency.
+- **Headless screenshot workflow**: attach a throwaway script under
+  `tools/` that calls `Input.action_press()` per tick and saves
+  `get_viewport().get_texture().get_image()` to `user://shots/`, run
+  under `xvfb-run godot --rendering-driver opengl3`. The
+  `user://shots/` directory must exist first. Delete `tools/` before
+  committing.

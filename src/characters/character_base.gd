@@ -12,6 +12,12 @@ extends SGCharacterBody2D
 const HitboxRes := preload("res://src/combat/hitbox.gd")
 const KnockbackUtil := preload("res://src/combat/knockback.gd")
 const FsmRes := preload("res://src/combat/state_machine.gd")
+const HitSparkRes := preload("res://src/fx/hit_spark.gd")
+const DustPuffRes := preload("res://src/fx/dust_puff.gd")
+
+# Visual-only feedback. None of this is read back by the sim.
+const HIT_FLASH_FRAMES: int = 4
+const ROLL_DUST_EVERY: int = 5
 
 @export var player_slot: int = 0
 @export var is_dummy: bool = false
@@ -102,6 +108,10 @@ var _stamina_fg: Polygon2D = null
 var block_stamina: int = BLOCK_STAMINA_MAX
 var block_lockout: int = 0
 
+# Visual-only counters (never read by gameplay decisions).
+var _flash_frames: int = 0
+var _was_on_floor: bool = false
+
 # KO counter — incremented every time the fighter crosses the blast zone
 # and gets teleported back to spawn. Unlimited (no stock system in
 # Phase 1); both player and dummy use the same handler.
@@ -183,6 +193,8 @@ func tick(input: Dictionary, current_frame: int) -> void:
 		v.x = roll_speed_fx * facing
 		_tick_roll(current_frame)
 		_apply_roll_spin()
+		if fsm.frames_in_state(current_frame) % ROLL_DUST_EVERY == 0:
+			_spawn_dust(float(facing), 0.7)
 	elif fsm.state == FsmRes.State.BLOCK:
 		# Rooted while held. Drain stamina each tick; if it bottoms out
 		# the shield breaks and goes on lockout. Release K to drop.
@@ -229,7 +241,16 @@ func tick(input: Dictionary, current_frame: int) -> void:
 
 	velocity = v
 	move_and_slide()
+
+	# --- visual feedback only below this line ---
+	var on_floor_now: bool = is_on_floor()
+	if on_floor_now and not _was_on_floor:
+		_spawn_dust(0.0, 1.4)
+	_was_on_floor = on_floor_now
+	if _flash_frames > 0:
+		_flash_frames -= 1
 	_apply_facing_to_visual()
+	_refresh_visual_tint()
 	_refresh_percent_label()
 	_refresh_stamina_bar()
 
@@ -295,6 +316,17 @@ func apply_hit(hb: Resource, _attacker_facing: int = 1, damage_multiplier: int =
 		_clear_block_visual()
 		_clear_roll_visual()
 	_refresh_percent_label()
+
+	# Impact feedback: flash, spark burst, camera kick. Heavier hits
+	# read bigger; blocked hits read muted.
+	var heft: float = clampf(float(damage) / 10.0, 0.5, 1.6)
+	if blocking:
+		heft *= 0.5
+	_flash_frames = HIT_FLASH_FRAMES
+	_spawn_hit_spark(heft)
+	var cam: Node = get_tree().get_first_node_in_group("stage_camera")
+	if cam != null and cam.has_method("shake"):
+		cam.shake(1.5 + 3.0 * heft)
 
 
 func ko_and_respawn() -> void:
@@ -499,7 +531,7 @@ func _show_hitbox_visual() -> void:
 	_hitbox_visual.polygon = PackedVector2Array([
 		Vector2(-hw, -hh), Vector2(hw, -hh), Vector2(hw, hh), Vector2(-hw, hh)
 	])
-	_hitbox_visual.color = Color(1.0, 0.3, 0.2, 0.55)
+	_hitbox_visual.color = Color(1.0, 0.45, 0.25, 0.32)
 	_hitbox_visual.position = Vector2(hb.offset_px)
 	add_child(_hitbox_visual)
 
@@ -540,16 +572,45 @@ func _clear_roll_visual() -> void:
 
 
 func _apply_block_visual() -> void:
-	if _visual == null:
-		return
-	# Steel-blue tint reads as "hardened". Cleared on any state change.
-	_visual.modulate = Color(0.65, 0.8, 1.05, 1.0)
+	_refresh_visual_tint()
 
 
 func _clear_block_visual() -> void:
+	_refresh_visual_tint()
+
+
+func _refresh_visual_tint() -> void:
 	if _visual == null:
 		return
-	_visual.modulate = Color(1, 1, 1, 1)
+	# Priority: hit flash > block tint > normal. Modulate above 1.0
+	# blows out toward white, which is what we want for the flash.
+	if _flash_frames > 0:
+		_visual.modulate = Color(2.2, 2.0, 1.8, 1.0)
+	elif fsm.state == FsmRes.State.BLOCK:
+		_visual.modulate = Color(0.65, 0.8, 1.05, 1.0)
+	else:
+		_visual.modulate = Color(1, 1, 1, 1)
+
+
+func _spawn_hit_spark(strength: float) -> void:
+	var parent: Node = get_parent()
+	if parent == null:
+		return
+	var fx: Node2D = HitSparkRes.new()
+	fx.strength = strength
+	fx.position = position + Vector2(0, -6)
+	parent.add_child(fx)
+
+
+func _spawn_dust(dir_x: float, size: float) -> void:
+	var parent: Node = get_parent()
+	if parent == null:
+		return
+	var fx: Node2D = DustPuffRes.new()
+	fx.dir_x = dir_x
+	fx.size = size
+	fx.position = position + Vector2(-dir_x * 8.0, float(BODY_HALF_H) - 1.0)
+	parent.add_child(fx)
 
 
 func _refresh_stamina_bar() -> void:

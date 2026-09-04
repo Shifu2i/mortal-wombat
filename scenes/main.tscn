@@ -25,6 +25,7 @@ player_slot = 1
 is_dummy = true
 
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
+layer = 2
 script = ExtResource("4_dbg")
 fight_manager_path = NodePath("..")
 
